@@ -1,0 +1,1179 @@
+library(reshape)
+library(sqldf)
+library(ggplot2)
+library(lattice) 
+library(gplots)
+library(lme4)
+library(MASS)
+library(gridExtra)
+#
+ContourPlot<-function(Before,After,Upx,Upy,bins)
+{
+
+	dens<-kde2d(Before,After,lims=c(0,Upx,0,Upy))
+	densDf<-data.frame(expand.grid(Before=dens$x,After=dens$y),z=as.vector(dens$z))
+	plot<-ggplot(densDf,aes(Before,After,z=z))+stat_contour(bins=bins)
+return(plot=plot)
+}
+
+
+JoinSets<-function(tka,icd)
+{
+	
+	icd=read.csv('ICDCodes.csv')
+	tka<-read.csv('FullJoin1.csv')
+	mdata<-melt(icd, id=c("TKAVID","ICDDescription"))
+	cdata1<-cast(mdata,TKAVID~ICDDescription) 
+	m1=merge(x=tka,y=cdata1,by="TKAVID",all.x=TRUE)
+
+	return(m1)
+}
+
+GetSide<-function(RawDf)
+{
+	l<-grep("left",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r<-grep("right",tolower(RawDf$PrincipalProcedure))# Find Right TKA
+
+	l1<-grep("^l[.][[:print:]]",tolower(RawDf$PrincipalProcedure))
+	r1<-grep("^r[.][[:print:]]",tolower(RawDf$PrincipalProced))
+	
+	l11<-grep("^[l][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	r11<-grep("^[r][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	
+	l2<-grep("[l][t][.][[:space:]]",tolower(RawDf$PrincipalProcedure)) # look for 
+	r2<-grep("[r][t][.][[:space:]]",tolower(RawDf$PrincipalProcedure)) # look for 
+	
+	l3<-grep("^[l][t][[:print:]]",tolower(RawDf$PrincipalProcedure))
+	r3<-grep("^[r][t][[:print:]]",tolower(RawDf$PrincipalProced))
+	
+	l4<-grep("^[l][t][.]*",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r4<-grep("^[r[t]][.]*",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	
+	l5<-grep("[l][t][[:space:]]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r5<-grep("[r][t][[]:space:]",tolower(RawDf$PrincipalProcedure))#
+	
+	l55<-grep("[[:space:]]lt[[:space:]]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r55<-grep("[[:space:]]rt[[:space:]]",tolower(RawDf$PrincipalProcedure))#
+	
+	l6<-grep("\\(lt\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r6<-grep("\\(rt\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	
+	l7<-grep("[[:space:]]l[[:space:]]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r7<-grep("[[:space:]]r[[:space:]]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	
+	l8<-grep("\\(l\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r8<-grep("\\(r\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left 
+	
+	l88<-grep("\\(lt\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r88<-grep("\\(rt\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+
+	IndicesR<-c(r,r1,r11,r2,r3,r4,r5,r55,r6,r7,r8,r88)#
+	IndicesL<-c(l,l1,l11,l2,l3,l4,l5,l55,l6,l7,l8,l88)#
+	
+	UniqR<-(unique(IndicesR))
+	UniqL<-(unique(IndicesL))
+
+	SideLogical<-c(rep(1,length(UniqR)),rep(0,length(UniqL))) # 1-Right, #0 left
+	#
+	Side<-gsub(c("1"),c("RIGHT"),SideLogical)
+	Side<-gsub(c("0"),c("LEFT"),Side)
+	#
+	NewDf<-cbind(RawDf[c(UniqR,UniqL),],SideLogical,Side)
+	Left<-(dim(RawDf)[1]-dim(NewDf)[1])
+	Unq=c(UniqR,UniqL)
+	print(Left)
+	
+	
+	return(list(NewDf=NewDf,Unq=Unq,Left=Left))
+
+}
+
+
+
+GetSideRevision<-function(RawDf)
+{
+	l<-grep("left",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r<-grep("right",tolower(RawDf$PrincipalProcedure))# Find Right TKA
+	
+	l1<-grep("^[l][.][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	r1<-grep("^[r][.][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	
+	
+	l11<-grep("^[l][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	r11<-grep("^[r][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	
+	l2<-grep("^[l][t][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	r2<-grep("^[r][t][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	
+	l22<-grep("[[:space:]][l][t][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	r22<-grep("[[:space:]][r][t][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	
+	l222<-grep("[[:space:]][l][t][.][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	r222<-grep("[[:space:]][r][t][.][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	
+	l2221<-grep("[[:space:]]l[.][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	r2221<-grep("[[:space:]]l[.][[:space:]]",tolower(RawDf$PrincipalProcedure))
+	
+	l3<-grep("^[l][t][[:graph:]]",tolower(RawDf$PrincipalProcedure))
+	r3<-grep("^[r][t][[:graph:]]",tolower(RawDf$PrincipalProcedure))
+	
+	
+	l4<-grep("[[:space:]][l][[:space:]]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r4<-grep("[[:space:]][r][[:space:]]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	
+	
+	l5<-grep("[[:space:]][l][.]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r5<-grep("[[:space:]][r][.]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	
+	l6<-grep("\\(l\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r6<-grep("\\(r\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left 
+	
+	l66<-grep("\\(lt\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r66<-grep("\\(rt\\)",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+
+	l7<-grep("[[:space:]][l][t][[:graph:]]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	r7<-grep("[[:space:]][r][t][[:graph:]]",tolower(RawDf$PrincipalProcedure)) # Find the Left TKA
+	 	
+	l8<-grep("l[.][[:print:]]",tolower(RawDf$PrincipalProcedure))
+	r8<-grep("r[.][[:print:]]",tolower(RawDf$PrincipalProcedure))
+	
+	
+
+	IndicesR<-c(r,r1,r11,r2,r22,r222,r3,r4,r6,r66,r7,r8)
+	IndicesL<-c(l,l1,l11,l2,l22,l222,l3,l4,l6,l66,l7,l8)
+	
+	UniqR<-(unique(IndicesR))
+	UniqL<-(unique(IndicesL))
+
+	SideLogical<-c(rep(1,length(UniqR)),rep(0,length(UniqL))) # 1-Right, #0 left
+	#
+	Side<-gsub(c("1"),c("RIGHT"),SideLogical)
+	Side<-gsub(c("0"),c("LEFT"),Side)
+	#
+	NewDf<-cbind(RawDf[c(UniqR,UniqL),],SideLogical,Side)
+	Left<-(dim(RawDf)[1]-dim(NewDf)[1])
+	Unq=c(UniqR,UniqL)
+	#
+	print(Left)
+	
+	#
+	return(list(NewDf=NewDf,Unq=Unq,Left=Left))
+
+}
+# This piece will join the sets on TKAVID and the operated side.
+MakeJoinWithSide<-function(tka,mnp,tkr)
+{
+	t1<-sqldf('select 
+			a.TKAVID, 
+			a.TKADate,
+			b.ManipDate, 
+			c.REVDate,
+			
+			a.PrincipalProcedure,
+			a.SideLogical,
+			b.PrincipalProcedure MnpDesc,
+			b.Sta3n,
+			b.SideLogical MnpLogical,
+			c.PrincipalProcedure as RevDesc,
+			
+			c.SideLogical as RevSide,
+			c.Sta3n
+
+			from tka as a 
+			
+			left join mnp as b on 
+				a.TKAVID=b.TKAVID and a.Side=b.Side
+			left join tkr as c on 
+				a.TKAVID=c.TKAVID and a.Side=c.Side
+			')
+
+return(t1=t1)
+}
+
+# This block joins only on TKAVID with no relation to side.
+
+MakeJoinNoSide<-function(tka,mnp,tkr)
+{
+	t1<-sqldf('select 
+			a.TKAVID, 
+			a.TKADate,
+			b.ManipDate, 
+			c.REVDate,
+			
+			a.PrincipalProcedure,
+			
+			b.PrincipalProcedure MnpDesc,
+			b.Sta3n,
+			
+			c.PrincipalProcedure as RevDesc,
+			
+			
+			c.Sta3n
+
+			from tka as a r3<-grep("^[r.]+\\s",tolower(RawDf$Principta=WorkDf,family='binomial'))
+			
+			left join mnp as b on 
+				a.TKAVID=b.TKAVID and a.Side=b.Side
+			left join tkr as c on 
+				a.TKAVID=c.TKAVID and a.Side=c.Side
+			order by a.TKAVID
+				'
+				
+			)
+
+size
+return(t1=t1)
+}
+
+
+
+
+# Function to find patients with more than one entry.
+NonUnique<-function(tkavid)
+{
+	for (id in tkavid)
+		{
+		occ<-length(which(sort(tkavid==id)))
+		print (c(id,occ))
+		}
+
+
+}
+
+# Function to summarize revisions
+SumRevEvent<-function(tkr)
+{
+	FirstRevDate<-sqldf('select tkr.TKAVID, tkr.SideLogical, min(tkr.REVDate) as EarlyRevDate  
+							from tkr group by tkr.TKAVID')				 			
+
+	TotalRev<-sqldf('select tkr.TKAVID, count(tkr.REVDate) as NumRev from tkr group by tkr.TKAVID')
+	
+	RevSumTable<-sqldf('select 
+						TotalRev.TKAVID,
+						FirstRevDate.SideLogical,
+						TotalRev.NumRev,
+						FirstRevDate.EarlyRevDate
+						
+						from TotalRev 
+						join FirstRevDate  on 
+							TotalRev.TKAVID=FirstRevDate.TKAVID
+						
+						')
+
+
+return(RevSumTable=RevSumTable)  # Rerun a summarized table
+}
+
+SumRevEvent2<-function(tkr)
+{
+	Mat=NULL
+	for (id in tkr$TKAVID)
+	{
+		
+		ID=tkr[(which(tkr$TKAVID==id))[1],1]
+		
+		TimeStamp=as.character(tkr[which(tkr$TKAVID==id)[1],13])
+		
+		SideLogical=tkr[which(tkr$TKAVID==id)[1],15]
+		
+		EarlyRevDate=strptime(TimeStamp,format="%M/%d/%Y %H:%M")
+
+		NewRow<-c(ID,TimeStamp,SideLogical)
+		
+		Mat=rbind(Mat,NewRow)
+		
+		FirstRevDate=data.frame(TKAVID=Mat[,1],EarlyRevDate=Mat[,2],SideLogical=Mat[,3])
+	
+	}
+
+	TotalRev<-sqldf('select tkr.TKAVID, count(tkr.REVDate) as NumRev from tkr group by tkr.TKAVID')
+	
+	RevSumTable<-sqldf('select distinct
+						TotalRev.TKAVID,
+						FirstRevDate.SideLogical,
+						TotalRev.NumRev,
+						FirstRevDate.EarlyRevDate
+						
+						from TotalRev 
+						join FirstRevDate  on 
+							TotalRev.TKAVID=FirstRevDate.TKAVID
+						
+						')
+
+
+return(RevSumTable=RevSumTable)  # Rerun a summarized table
+}
+
+#Function to summarize knee manipulations
+#
+SumMnpEvent<-function(mnp)
+{
+	FirstMnpDate<-sqldf('select mnp.TKAVID, 
+							mnp.SideLogical,
+							min(mnp.ManipDate) as EarlyMnpDate  
+						from mnp 
+						group by mnp.TKAVID')
+
+	TotalMnp<-sqldf('select mnp.TKAVID, count(mnp.ManipDate) as NumManip from mnp group by mnp.TKAVID')
+	
+	MnpSumTable<-sqldf('select 
+						TotalMnp.TKAVID,
+						FirstMnpDate.SideLogical,
+						TotalMnp.NumManip,
+						FirstMnpDate.EarlyMnpDate
+						
+						from TotalMnp
+						join FirstMnpDate  on 
+							TotalMnp.TKAVID=FirstMnpDate.TKAVID
+						
+						')
+SumMnpEvent2<-function(mnp)
+{
+	Mat=NULL
+	for (id in mnp$TKAVID)
+	{
+		
+		ID=mnp[(which(mnp$TKAVID==id))[1],1]
+		
+		TimeStamp=as.character(mnp[which(mnp$TKAVID==id)[1],13])
+		
+		SideLogical=mnp[which(mnp$TKAVID==id)[1],15]
+		
+
+		NewRow<-c(ID,TimeStamp,SideLogical)
+		
+		Mat=rbind(Mat,NewRow)
+		
+		FirstMnpDate=data.frame(TKAVID=Mat[,1],EarlyMnpDate=Mat[,2],SideLogical=Mat[,3])
+	
+	}
+
+	TotalMnp<-sqldf('select mnp.TKAVID, count(mnp.ManipDate) as NumManip from mnp group by mnp.TKAVID')
+	
+	MnpSumTable<-sqldf('select distinct
+						TotalMnp.TKAVID,
+						FirstMnpDate.SideLogical,
+						TotalMnp.NumManip,
+						FirstMnpDate.EarlyMnpDate
+						
+						from TotalMnp
+						join FirstMnpDate  on 
+							TotalMnp.TKAVID=FirstMnpDate.TKAVID
+						
+						')
+
+
+
+
+return(MnpSumTable=MnpSumTable) 
+ # Rerun a summarized table
+}
+## This funuction joins the ICD-9 code for each patient and returns a 0 or 1 if the consition exists or not.
+
+ICDCodeJoin<-function(icd)
+{
+	
+	
+	mdata<-melt(icd, id=c("TKAVID","ICDDescription"))
+	cdata1<-cast(mdata,TKAVID~ICDDescription) 
+	NoCommas<-gsub(",","",names(cdata1)) # Get the Commas out
+
+	Add_SubScripts<-gsub(" ","_",NoCommas)
+	colnames(cdata1)<-Add_SubScripts
+	#
+	ICDLogical<-cbind(cdata1[,1],apply((as.data.frame(cdata1[,-1])>0),2,as.numeric))
+	d<-as.data.frame(ICDLogical)
+	colnames(d)<-names(cdata1)
+	
+return(d)
+}
+
+## Turn NAs to zeros
+Na2Zero<-function(df)
+{
+
+	ZeroIn<-sapply(df,function(x) x[which(is.na(x)==TRUE)]<-0)
+return(ZeroIn)
+}
+#Weight Height and operation time which are zero need be removed
+RemoveZeroVals<-function(df)
+{
+	rmv=c(which(df$wt==0),which(df$ht==0),which(df$OperationTime==0))
+	TempDf<-df[-rmv,]								 
+	bmi=(703*TempDf$wt)/(TempDf$ht)^2
+	CentBMI=scale(bmi,center=TRUE)
+	Df<-data.frame(TempDf,bmi,CentBMI)
+return(list(Df=Df,bmi=bmi,CentBMI=CentBMI,rmv=rmv))
+}
+
+
+}
+
+HeatMap<-function(df)
+{
+	
+		heatmap.2(df$corel, 
+		main="Correlogram",
+		density.info="histogram",
+		dendrogram="none",
+		trace="none",
+		keysize=1.2,
+		margins=c(10,10),
+		col=bluered(100))
+	
+}
+
+AddStates<-function(WorkDf,StatesDivision)
+{
+	GeoDf<-sqldf(' select distinct
+					WorkDf.*,
+					StatesDivision.State,
+					
+					
+					StatesDivision.StateAbbrev
+					from WorkDf
+					left join StatesDivision on 
+					WorkDf.DIVISION=StatesDivision.InstitutionName
+					order by WorkDf.TKAVID
+		
+	')
+
+
+return(GeoDf=GeoDf)
+}
+
+MakeConfInt<-function(model1)
+{
+	OR<-exp(summary(model1)$coef[2,1])
+	ymin=exp(confint(model1))[2,1]
+	ymax=exp(confint(model1))[2,2]
+
+return(list(OR=OR,ymin=ymin,ymax=ymax))
+}
+
+
+
+ModelListOR<-function(ModelList)
+{
+modelFrame=NULL
+for (i in 1:length(ModelList))
+{
+	
+	model1=ModelList[[i]]
+	
+	nextModel<-data.frame(Variable=rownames(summary(model1)$coef)[2],
+						OR=exp(summary(model1)$coef[2,1]),
+						ymin=exp(confint(model1))[2,1],
+						ymax=exp(confint(model1))[2,2]
+						
+						)
+
+	
+	
+modelFrame <- rbind(modelFrame,nextModel)  # etc.
+}
+print(modelFrame)
+return(modelFrame=modelFrame)
+}
+
+
+PlotOR<-function(order)
+{
+
+##
+zp1 <- ggplot(order, aes(y=OR,x=Variable))
+zp1 <- zp1 + geom_hline(yintercept = 1, colour = gray(1/2), lty = 1)
+
+
+zp1 <- zp1 + geom_linerange(aes( y=OR,x=Variable,ymin = ymin,
+                                ymax = ymax),
+                            lwd = 0.5, position = position_dodge(width = 2))
+                            
+  
+zp1<-zp1+geom_point(aes(y=OR,x=Variable, ymin = ymin,
+                             ymax = ymax))+scale_size_area()+scale_shape(solid=TRUE)                  
+#
+zp1 <- zp1 + geom_pointrange(aes(y=OR,x=Variable, ymin = ymin,
+                                 ymax = ymax),
+                             lwd = 0.25, position = position_dodge(width = 1/2),
+                            )  
+                            
+zp1<-zp1+xlab(c(as.character(order$Variable)))
+
+zp1 <- zp1 + coord_flip() + theme_bw()+theme(axis.text.y=element_text(hjust=0))
+zp1 <- zp1 + ggtitle("D. OR for Post TKA interventions ")+xlab("")+ylab("OR")
+
+#print(zp1) 
+
+return(zp1=zp1)
+}
+
+
+Data4Bar<-function(Before, After,label)
+{
+	#
+	# This function generates a data frame for the before and after plots
+	#
+	measure<-(c(Before,After))
+	class<-c(rep('Before',length(Before)),rep('After',length(After)))
+	classNum<-c(rep(0,length(Before)),rep(1,length(After)))
+	BarData<-data.frame(cbind(measure,classNum))
+	colnames(BarData)<-c(as.character(label),'classNum')
+
+	
+return(list(BarData=BarData))
+}
+
+KMEstimRev<-function(df,days)
+{
+	m<-strptime(df$EarlyMnpDate,format="%m/%d/%y  %H:%M") # manipulation time stamps
+
+	r<-strptime(df$EarlyRevDate,format="%m/%d/%y  %H:%M") # revision time stamps
+	t<-strptime(df$TKADate,format="%m/%d/%Y %H:%M") #tka time stamps
+	#
+	Time2Revision<-T2Rev<-difftime(r,t,units=c("days"))
+	IsRev<-(-1)*(as.numeric(is.na(Time2Revision))-1) # Has revision occured in the period of time -"days"
+
+	T2Manip<-difftime(m,t,units=c("days"))
+	censor<-strptime("01/01/2013 00:00",format="%m/%d/%Y 00:00") # censor time at the end of study
+	TKA2Censor<-as.numeric(difftime(censor,t) )
+	#
+	#
+	IsRevYear<-as.numeric(Time2Revision<days) # Revision =1
+	IsRevYear[is.na(IsRevYear)]<-0 # 
+
+	Time2Revision<-T2Rev[is.na(T2Rev)]<-TKA2Censor[is.na(T2Rev)] # Whereever the is NA in the revision time, put the time to censoring.
+	fit1<-Surv(as.numeric(T2Rev),IsRevYear)
+	ChronicOpioid=WorkDf$IfBefore
+	# Find the KM estimator
+	#
+	KMEstim1year<-survdiff(Surv(as.numeric(T2Rev),IsRevYear)~(IfBefore),rho=0) # 
+	#
+	#fit1year<-survfit(Surv(as.numeric(T2Rev),IsRevYear)~IfAfter,data=df)
+	#
+	fit1year<-survfit(Surv(as.numeric(T2Rev),IsRevYear)~IfBefore,data=df)
+	p1<-ggsurv(fit1year)+xlim(c(0,days))+theme_bw()+scale_fill_discrete(name="Chronic Opioid Use",labels=c("No","Yes"))
+	p1<-p1+theme(legend.position="none")
+	 
+	
+	p1<-p1+ggtitle('A. Time to 1st revision in 1 year')+theme_bw(10)+ylab('Knee implant survival probability')+scale_fill_discrete(name="Chronic Opioid Use",labels=c("No","Yes"))
+	
+
+	return(list(fit1=fit1,fit1year=fit1year,p1=p1,KM=KMEstim1year))
+}
+
+
+KMEstimManip<-function(df,days)
+{
+	m<-strptime(df$EarlyMnpDate,format="%m/%d/%y  %H:%M") # manipulation time stamps
+
+	r<-strptime(df$EarlyRevDate,format="%m/%d/%y  %H:%M") # revision time stamps
+	t<-strptime(df$TKADate,format="%m/%d/%Y %H:%M") #tka time stamps
+	#
+	Time2Manip<-T2Manip<-difftime(m,t,units=c("days"))
+	IsManip<-(-1)*(as.numeric(is.na(Time2Manip))-1) # Has revision occured in the period of time -"days"
+
+	T2Manip<-difftime(m,t,units=c("days"))
+	censor<-strptime("01/01/2013 00:00",format="%m/%d/%Y 00:00") # censor time at the end of study
+	TKA2Censor<-as.numeric(difftime(censor,t) )
+	#
+	#
+	IsManipYear<-as.numeric(Time2Manip<days) # Revision =1
+	IsManipYear[is.na(IsManipYear)]<-0 # 
+
+	Time2Manip<-T2Manip[is.na(T2Manip)]<-TKA2Censor[is.na(T2Manip)] # Whereever the is NA in the revision time, put the time to censoring.
+	fit1<-Surv(as.numeric(T2Manip),IsManipYear)
+	ChronicOpioid=WorkDf$IfBefore
+	# Find the KM estimator
+	#
+	#KMEstim1year<-survdiff(Surv(as.numeric(T2Rev),IsRevYear)~(IfAfter),rho=0) # 
+	KMEstim1year<-survdiff(Surv(as.numeric(T2Manip),IsManipYear)~(IfBefore),rho=0) # 
+	#
+	#fit1year<-survfit(Surv(as.numeric(T2Rev),IsRevYear)~IfAfter,data=df)
+	#
+	fit1year<-survfit(Surv(as.numeric(T2Manip),IsManipYear)~ChronicOpioid,data=df)
+	p1<-ggsurv(fit1year)+xlim(c(0,days))+scale_fill_discrete(name='Chronic Opioid Use',labels=c('No','Yes'))
+	#plot(survfit(fit1~1),xlim=c(0,365),ylim=c(0.96,1),mark.time=F)
+	p1<-p1+ggtitle('B.Time to knee manipulation in 1 year')+theme_bw(10)+ylab('No manipulation Probability') 
+	
+
+	return(list(fit1year=fit1year,p1=p1,KM=KMEstim1year))
+}
+
+# Categorize age into 10 year difference 
+KMbyAge<-function(WorkDf,cats)
+{
+	s<-KMEstimRev(WorkDf,365)
+	Age10=cut(WorkDf$Age,breaks=cats)
+	col=as.integer(Age10)jpeg("BigFig.jpeg",height=15,width=8,unit=c("in"),qualty=100)
+grid.arrange(Fig3,Fig4,Fig22,ncol=1)
+dev.off()
+	color=array(NA,dim=c(1,length(col)))
+	for (i in 1:length(col))
+	{
+		#color[i]<-rainbow(length(levels(Age10)))[col[i]]
+		color[i]<-rainbow(10*max(col))[10*col[i]]
+	}
+	 
+	km1<-survfit(s$fit1~factor(Age10),data=WorkDf)
+	coxph1<-coxph(s$fit1~factor(Age10))
+	plot(km1,mark.time=F,xlim=c(0,365),ylim=c(0.95,1.0),col=color,lty=col)
+	title(main=paste(c('Knee revision free survival by different age cats',cats/7)),xlab='Time',ylab='Knee Revision Free Survival')
+	legend('bottomleft',title=c('Age Categories'),legend=levels(factor(Age10)),col=color,lty=col,fill=color)
+	#
+	return(list(km1=km1,coxph1=coxph1))
+
+}
+############
+# Read files and transfor
+
+# Read raw files.
+TkaRaw<-read.csv("TKA.csv")
+TkrRaw<-read.csv("TKRevision.csv")
+MnpRaw<-read.csv("Manip.csv")
+Weight<-read.csv('Weight.csv')
+Height<-read.csv('Height.csv') 
+icd=read.csv('ICDCodes.csv') # ICD 9 coding.
+Opioids<-read.csv('OpioidsBeforeAndAfter.csv')# Opioid Files
+StatesDivision<-read.csv("DivisioNameStates.csv")
+######
+#Transfrom in order to get the correct side of the procedure.
+tka<-GetSideRevision(TkaRaw)$NewDf
+tkr<-GetSideRevision(TkrRaw)$NewDf
+mnp<-GetSideRevision(MnpRaw)$NewDf
+####ggsave('Fig1.pdf')
+
+
+#
+colnames(tkr)[1]<-colnames(mnp)[1]<-colnames(tka)[1]
+
+#Run
+
+# Build a table to all the total Revisions and manipulations done on the patinet per knee.
+Surg<-MakeJoinWithSide(tka,mnp,tkr) # Build the surgical event dataset
+#RevTable<-SumRevEvent(tkr)
+RevTable<-SumRevEvent2(tkr)
+#MnpTable<-SumMnpEvent(mnp)
+MnpTable<-SumMnpEvent2(mnp)
+
+SumTable<-sqldf('select 
+				tka.TKAVID,
+				tka.TKADate,
+				tka.AgeAtTKA as Age,
+				tka.gender,
+				Weight.wt,
+				Height.ht,
+				tka.State,
+				tka.county,
+				tka.DIVISION,
+				tka.OperationTime,
+				
+				tka.SideLogical as TKASideLogical,
+				MnpTable.NumManip,
+				MnpTable.EarlyMnpDate,
+				MnpTable.SideLogical as MnpSideLogical,
+				RevTable.NumRev,
+				RevTable.EarlyRevDate,
+				RevTable.SideLogical as RevSideLogical
+				
+				from  tka
+				
+				left join MnpTable on 
+					tka.TKAVID=MnpTable.TKAVID and  tka.SideLogical=MnpTable.SideLogical
+				left join RevTable on 
+					tka.TKAVID=RevTable.TKAVID and tka.SideLogical=RevTable.SideLogical
+				
+				left join Weight on 
+					tka.TKAVID=Weight.TKAVID
+				left join Height on 
+					tka.TKAVID=Height.TKAVID
+				order by tka.TKAVID
+				
+				')
+				
+
+				
+
+TheJoin<-sqldf('select 
+
+		SumTable.TKAVID, 
+		SumTable.TKADAte,
+		
+		SumTable.Age,
+		SumTable.gender,
+		Sumtable.ht,
+		SumTable.wt,
+		SumTable.State,
+		SumTable.county,
+
+		SumTable.DIVISION,
+		SumTable.OperationTime,
+		
+
+		SumTable.TKASideLogical,
+		SumTable.NumManip,
+		SumTable.EarlyMnpDate,
+		SumTable.NumRev,
+		SumTable.EarlyRevDate,
+		SumTable.RevSideLogical,
+		
+		Opioids.TimeBefore as TimeBefore,
+	
+		Opioids.TypeBefore as TypeBefore,
+		Opioids.NumPillsBefore as NumPillsBefore,
+		
+		Opioids.TimeAfter as TimeAfter,
+		Opioids.TypeAfter as TypeAfter,
+		Opioids.NumPillAfter as NumPillAfter
+		
+		from SumTable 
+		
+		left join Opioids on 
+			SumTable.TKAVID=Opioids.TKAVID 
+		
+		group by SumTable.TKAVID ,SumTable.TKADate
+		')
+			
+##
+## Add the ICD9 codes to the set.
+
+ICDLogical<-ICDCodeJoin(icd)
+Final=merge(x=TheJoin,y=ICDLogical,by="TKAVID",all.x=TRUE) 
+
+
+write.table(Final,file="Final.txt",na="NA") # Save the result of the data base !
+
+# Need to run shell commands, to remove NAs and Nulls into 0s.
+system('sed -i "s/NA/0/g" Final.txt')
+system('sed -i "s/NULL/0/g" Final.txt')
+#
+#
+# No need to run from the begoning use the Final.txt file
+#
+#
+df1<-read.table('Final.txt') # File Ready to work with.
+# Take out those who seems to have a revision before their TKA...:-)
+m1<-strptime(df1$EarlyMnpDate,format="%m/%d/%y  %H:%M") # manipulation time stamps
+
+r1<-strptime(df1$EarlyRevDate,format="%m/%d/%y  %H:%M") # revision time stamps
+t1<-strptime(df1$TKADate,format="%m/%d/%Y %H:%M") #tka time stamps
+#
+Time2Revision<-T2Rev<-difftime(r1,t1,units=c("days"))
+RemoveDatesIndx<-which(as.numeric((Time2Revision<0))==1)
+
+Time2Mnp<-difftime(m1,t1,units=c('days'))
+RemoveDatesIndx2<-which(as.numeric((Time2Mnp<0))==1)
+#
+#
+#
+df<-df1[-c(RemoveDatesIndx,RemoveDatesIndx2),]
+#df<-df1[-RemoveDatesIndx,]
+
+# Collapse Variables
+# Data Transformation and Preprocessing
+#
+sex<-as.numeric(df$gender)	   #Male=2 female=1
+Diabetes<-as.numeric(apply(df[,49:79],1,sum)>0)  # Collapse Diabetes
+CKD<-as.numeric(apply(df[,c(39:45,80,94)],1,sum)>0)# Collapse CKD
+HTN<-as.numeric(apply(df[,c(83:87,99)],1,sum)>0)# Collapse HTN
+CHF<-as.numeric(apply(df[,c(47,48,37,97:99,88)],1,sum)>0)# Collapse CHF
+OSA<-as.numeric(df[,c(90)])# Collapse OSA
+PTSD<-as.numeric(df[,c(93)])# Collapse PTSD
+
+Tobbaco<-as.numeric(df[,c(82)])# Collapse Tobbaco
+#
+IfAfter<-as.numeric(df$TimeAfter>3)  # Did the patient took opioids for more than 3 months?
+IfBefore<-as.numeric(df$TimeBefore>3) # Did the patient took an opioid for more than 3 months before surgery?
+#
+PostSurgProc<-as.numeric(apply(df[,c(12,14)],1,sum)>0) # was any interventions post TKA
+OpioidsBeforeLogical<-as.numeric(df$TimeBefore>0) # Was a patient on opioids in the year before surgery
+OpioidsAfterLogical<-as.numeric(df$TimeAfter>0)   # Was patient on Narcotics after surgery.
+ManipLogical<-as.numeric(df$NumManip>0)    # Has manipulation occured.
+RevLogical<-as.numeric(df$NumRev>0)			# Has revision occured.
+NumRevLogical<-as.numeric(df$NumRev>1)			# Has there been more than one revision
+#
+CentNumPillsBefore<-scale(df$NumPillsBefore,center=TRUE) # Number of Pills before Centered
+CentNumPillsAfter<-scale(df$NumPillAfter,center=TRUE) # Number of Pills After centered.
+
+#
+Tdf<-data.frame(sex,Diabetes,CKD,HTN,CHF,OSA,PTSD,Tobbaco,
+			PostSurgProc,
+			OpioidsBeforeLogical,
+			CentNumPillsBefore,
+			OpioidsAfterLogical,
+			CentNumPillsAfter,
+			ManipLogical,
+			RevLogical,
+			NumRevLogical,
+			IfAfter,
+			IfBefore)
+
+#
+# Compute time time to revision.
+#
+
+#surv<-KMEstim(df)
+#
+#
+# build Set.
+Set1<-c(1:22) # include necessary data relevant to TKA
+		# include ICD 9 codes. - PTSD, OSA,hx of Tocbacco us
+#
+#Build data frame
+#PostSurgProc
+set<-data.frame(df[,c(Set1)],Tdf)#  
+WorkDf<-set # Allow height nd weight zero.
+Df4bmi<-RemoveZeroVals(set)$Df # remove weight and height which are zero
+GeoDf<-AddStates(WorkDf,StatesDivision)
+#
+# Write Data to Files.
+#
+write.table(WorkDf,file='WorkDf.txt')
+#
+write.table(GeoDf,file='GeoDf.txt')
+#
+NumPills<-(c(WorkDf$NumPillsBefore,WorkDf$NumPillAfter))
+class<-c(rep('Before',length(WorkDf$NumPillsBefore)),rep('After',length(WorkDf$NumPillAfter)))
+classNum<-c(rep(0,length(WorkDf$NumPillsBefore)),rep(1,length(WorkDf$NumPillAfter)))
+BarData<-as.data.frame(cbind(NumPills,classNum))
+
+
+p1<-ggplot(BarData,aes(x=NumPills))+geom_histogram(aes(fill=factor(classNum)),position="dodge",bin_width=10)
+p1<-p1+xlim(0,5500)+theme_bw()
+p1<-p1+ggtitle('Count of Opioid Pills dispensed Before/After TKA')
+p1<-p1+scale_fill_discrete(name="0-Before,1-After")
+p1
+##########
+#
+#Survival analysis curves
+
+
+
+
+
+ggsave('Fig2.pdf')
+p1<-surv$p1+xlab("Time(Days)")+ggtitle("Time to knee revision after TKA")
+dev.off()
+############################################
+pdf("Fig1.pdf")
+
+ggplot(WorkDf,aes(Age))+geom_bar(aes(fill=factor(IfBefore)))
+
+WorkDf$Intervention<-factor((WorkDf$PostSurgProc),labels=c("No post TKA Intervention","Post TKA Intervention"))
+#
+p2<-ggplot(WorkDf,aes(Age,fill=factor(IfBefore)))
+p2<-p2+geom_histogram(position="dodge",bin=5)+facet_grid(.~Intervention)+theme_bw()	# Fig1 
+p2<-p2+ggtitle('A. Consumption of opioids by age and post TKA interventions ')
+p2<-p2+scale_fill_discrete(name="Chronic Opioid")
+
+Fig1<-p2+theme_bw(10)
+#
+
+dev.off()
+
+
+######
+
+p1<-ggplot(data=WorkDf,aes(x=factor(NumRev),fill=factor(IfBefore)))+geom_bar(position="dodge")
+p1<-p1+ggtitle("C. Number of knee revisions and chronic use of opioids before TKA")+theme_bw()+scale_fill_discrete(name="Chronic Opioid")
+p1<-p1+xlab('Number of knee revisios')
+Fig21<-p1+theme_bw(10)
+#
+p2<-ggplot(data=WorkDf,aes(x=factor(PostSurgProc),fill=factor(IfBefore)))+geom_bar(position="dodge")
+p2<-p2+ggtitle('C. Post TKA interventions and chronic use of opioids before TKA')+theme_bw()+scale_fill_discrete(name="Chronic Opioid Use",labels=c("No","Yes"))+ylab('Patients number')
+		
+p2<-p2+xlab('Post TKA surgical intervention')+scale_x_discrete(name='Post TKA Intervention',labels=c("No","Yes"))
+
+Fig22<-p2+theme_bw(10)
+
+
+
+
+a<-glm(NumRev~IfBefore,data=WorkDf,family='poisson')
+pdf("Fig2.pdf")
+grid.arrange(p1,p2)
+dev.off()
+df1<-as.data.frame(cbind(WorkDf$PostSurgProc,WorkDf$IfBefore))
+m1<-glm(PostSurgProc~IfBefore, data=WorkDf,family='binomial')
+m2<-glm(PostSurgProc~TimeBefore, data=WorkDf,family='binomial')
+m3<-glm(PostSurgProc~TypeBefore, data=WorkDf,family='binomial')
+
+colnames(df1)<-c('Surg','Chr')
+chisq.test(table(df1$Surg,df1$Chr))$p.value
+##################
+# Prepare plots for odds ratio
+#
+m1<-glm(PostSurgProc~IfBefore, data=WorkDf,family='binomial')
+m2<-glm(PostSurgProc~CHF, data=WorkDf,family='binomial')
+m5<-glm(PostSurgProc~OSA, data=WorkDf,family='binomial')
+m3<-glm(PostSurgProc~TypeBefore, data=WorkDf,family='binomial')
+
+m4<-glm(PostSurgProc~IfAfter, data=WorkDf,family='binomial')
+#m5<-glm(PostSurgProc~Tobbaco, data=WorkDf,family='binomial')
+
+ModelList<-list(m1,m2,m3,m4,m5)ge
+m<-ModelListOR(ModelList)
+nameList<-list()
+#pdf('Fig3.pdf')
+ordrd<-m[order(m$OR),]
+Fig3<-PlotOR(ordrd)
+#dev.off()
+
+
+## Make Fig 4
+
+
+data<-Data4Bar(WorkDf$TypeBefore,WorkDf$TypeAfter,'Type')$BarData
+p1<-ggplot(data,aes(x=factor(Type)))+geom_histogram(aes(fill=factor(classNum)),position="dodge",bin_width=10)
+p1<-p1+ggtitle('E.Numer of Types of opioids before and after surgery')
+p1<-p1+scale_fill_discrete(name="0-Before,1-After")
+p1<-p1+xlab('Number of Types of opioids')+theme_bw()
+Fig4<-p1
+data<-Data4Bar(WorkDf$NumPillsBefore,WorkDf$NumPillAfter,'PillCount')$BarData
+p1<-ggplot(data,aes(x=PillCount))+geom_bar(aes(fill=factor(classNum)),position="dodge")
+p1<-p1+xlim(0,5500)+theme_bw()+scale_fill_discrete(name="0-Before,1-After")
+p1<-p1+ggtitle('F. Count of opioid pills dispensed Before/After TKA')+xlab('# pills dispensed')
+Fig5<-p1
+
+data<-Data4Bar(WorkDf$TimeBefore,WorkDf$TimeAfter,'Time')$BarData
+p1<-ggplot(data,aes(x=Time))+geom_histogram(aes(fill=factor(classNum)),position="dodge",bin_width=5)
+p1<-p1+xlim=x(0,60)
+p1<-p1+ggtitle('G. Cumulative time (months) on opioid prescription 1 year before and after TKA.')+scale_fill_discrete(name="0-Before,1-After")
+p1<-p1+xlab('Time (Months)')+theme_bw()
+Fig6<-p1
+#################
+#
+jpeg("BigFig.jpeg",height=1200,width=800,units="px",pointsize=17)
+
+par(mfrow=c(3,1),mar=c(5,4.5,4,4),cex.lab=1.2)
+
+
+s<-KMEstimRev(WorkDf,365)
+plot(s$fit1year,xlim=c(0,365),ylim=c(0.97,1),mark.time=F,
+			ylab=c('Knee revision free probability'),col=c(1,2),
+			xlab=c('Time(Days)'),main=c('A. Time to 1st revision in 1 year.'))
+legend("topright",title=c('Chronic Opioid Use'),c("No ","Yes"),fill=c(1,2))	
+	
+
+#Fig3<-s$p1+ggtitle('A. Post TKA implant survival in 1year')+theme_bw(10)+ylab('Implant survival probability')
+#Fig3<-Fig3+scale_fill_discrete(name='Chronic Opioid Use',labels=c('No','Yes'))
+#
+#
+m<-KMEstimManip(WorkDf,365)
+plot(m$fit1year,xlim=c(0,365),ylim=c(0.97,1),mark.time=F,
+			ylab=c('Knee manipulation free probability'),col=c(1,2),
+			xlab=c('Time(Days)'),main=c('B. Time to manipulation in 1 year.'))
+legend("topright",title=c('Chronic Opioid Use'),c("No ","Yes"),fill=c(1,2))	
+
+t<-table(WorkDf$PostSurgProc,WorkDf$IfBefore)/39081
+
+barplot(t,beside=T,col=c(1,2),main=c("C. Post TKA interventions and chronic use of opioids before TKA"),#width=c(0.5,0.5,10,1),
+	xlab=c('Post TKA Procedure'),names.arg=c('No Post Surgical Intervention','Post Surgical Intervention'),
+	ylab=c('Proportion'))
+legend("topright",title=c('Chronic Opioid Use'),c("No ","Yes"),fill=c(1,2))	
+		
+dev.off()
+#
+#
+Fig4<-m$p1
+
+Fig5<-ggplot(WorkDf,aes(x=factor(TypeBefore),fill=factor(IfBefore)))+geom_histogram(position="dodge")+scale_fill_discrete(name="Chronic Opioid")
+Fig5<-Fig5+ggtitle("B. Number of types of opioids used before TKA.")+theme_bw(10)+xlab('Number of types of opioids')
+##################################################
+# Make 1 plot of all figures
+
+jpeg("BigFig.jpeg",height=15,width=8,unit=c("in"),qualty=100)
+grid.arrange(Fig3,Fig4,Fig22,ncol=1)
+dev.off()
+#################################################
+vars<-c(3,5,6,10,12,14,17:42)
+M<-covar(WorkDf,vars)
+pdf("heatmap.pdf")
+###########
+HeatMap(M) # Get the correlation matrr3<-grep("^[r.]+\\s",tolower(RawDf$Principta=WorkDf,family='binomial'))ix heatmap
+dev.off()
+#
+qplot(factor(PostSurgProc),NumPillAfter,data=WorkDf,geom="boxplot")
+glm(WorkDf$PostSurgProc,WorkDf$NumPillAfter,family='binomial')
+
+qplot(factor(PostSurgProc),NumPillsBefore,data=WorkDf,geom="boxplot")
+
+
+#
+#
+qplot(factor(PostSurgProc),TimeBefore,data=WorkDf,geom="boxplot")
+print(chisq.test(table((WorkDf$IfBefore),WorkDf$PostSurgProc)))
+summary(glm(PostSurgProc~IfBefore, data=WorkDf,family='binomial'))
+summary(glm(PostSurgProc~TimeBefore, data=WorkDf,family='binomial'))
+
+
+qplot(TimeBefore,data=WorkDf,geom="histogram",fill=factor(PostSurgProc))
+
+print(chisq.test(table((WorkDf$bmi>35),WorkDf$PostSurgProc)))
+
+
+
+ggplot(WorkDf,aes(TimeBefore,fill=factor(PostSurgProc)))+geom_bar(position="dodge")
+
+qplot(factor(PostSurgProc),NumPillAfter,data=WorkDf,geom="jitter")
+
+print(wilcox.test(NumPillAfter~factor(PostSurgProc),data=WorkDf,alternative=c("two.sided"))$p.value)
+
+
+ggplot(data=WorkDf,aes(x=factor(PostSurgProc),fill=factor(IfBefore)))+geom_bar(position="dodge")
+
+ggplot(WorkDf,aes(factor(TypeBefore)))+geom_histogram(aes(fill=factor(PostSurgProc),postion="dodge"))
+
+
+
+
+ggplot(WorkDf,aes(TimeBefore,TimeAfter))+geom_point(aes(size=factor(TypeBefore),color=factor(IfBefore)))
+
+
+
+ggplot(data=WorkDf,aes(x=NumRev,fill=factor(IfBefore)))+geom_bar(position="dodge")
+
+ggplot(WorkDf,aes(Age))+geom_bar(aes(fill=factor(IfBefore)))
+
+
+
+
+ggplot(WorkDf,aes(NumPillsBefore))+geom_bar(aes(fill=factor(IfBefore)))+facet_grid(.~PostSurgProc)
+
+ggplot(WorkDf,aes(TypeBefore))+geom_histogram(aes(fill=factor(IfBefore),position="dodge"))+facet_grid(.~PostSurgProc)
+
+ggplot(WorkDf,aes(x=factor(TypeBefore),fill=factor(IfAfter)))+geom_bar(position="dodge")+xlab('Number of Opioids Types Pre-operatively')
+						#Fig2
+
+ggplot(WorkDf,aes(factor(TypeBefore),fill=factor(PostSurgProc)))+geom_bar(position="dodge")+facet_grid(.~IfBefore)
+
+summary(glm(PostSurgProc~TypeBefore,data=WorkDf,family=binomial))
+
+ggplot(WorkDf,aes(factor(TypeBefore)))+geom_bar(aes(fill=factor(PostSurgProc),position="dodge"))
+
+ggplot(WorkDf,aes(factor(NumRev)))+geom_bar(aes(fill=factor(IfBefore)))
+ggplot(WorkDf,aes(factor(NumRev)))+geom_bar(aes(fill=factor(IfAfter)))
+
+ggplot(WorkDf,aes(TimeBefore,TimeAfter,size=NumPillAfter))+geom_point(aes(color=factor(PostSurgProc)))
+
+summary(glm(RevLogical~TimeBefore, data=WorkDf,family='binomial'))
+summary(glm(RevLogical~factor(IfBefore), data=WorkDf,family='binomial'))
+
+summary(glm(PostSurgProc~factor(IfBefore), data=WorkDf,family='binomial'))
+summary(glm(PostSurgProc~TimeBefore, data=WorkDf,family='binomial'))
+
+#################
+
+summary(glm(PostSurgProc~bmi*TimeBefore, data=WorkDf,family='binomial'))
+
+summary(glm(PostSurgProc~Diabetes*TimeBefore, data=WorkDf,family='binomial'))
+
+
+
+summary(glm(PostSurgProc~TimeBefore, data=WorkDf,family='binomial'))
+
+summary(glm(RevLogical~TypeBefore, daalProcedure))
+	
+
+summary(glm(PostSurgProc~TypeBefore, data=WorkDf,family='binomial'))
+
+
+
+qplot(TypeBefore,geom="histogram",data=WorkDf,fill=factor(PostSurgProc))
+
+
+qplot(TypeBefore,TypeAfter,geom="point",data=WorkDf,color=factor(IfBefore)) # DELICATESSE
+
+
+
+
+
+#
+
+qplot(x=NumPillsBefore,data=WorkDf,geom="histogram",facet=factor(DIVISfION)~.,fill=factor(PostSurgProc),binwidth=10,xlim=c(1,500))
+qplot(x=TimeBefore,data=WorkDf,geom="histogram",facet=factor(DIVISfION)~.,fill=factor(PostSurgProc),binwidth=10,xlim=c(1,500))
+qplot(x=NumPillsBefore,geom="bar",data=WorkDf,fill=factor(PostSurgProc),xlim=c(1,5000),ylim=c(0,4000))
+qplot(NumRev,geom="histogram",data=WorkDf,fill=factor(IfBefore))
+#
+#
+re1<-glmer(PostSurgProc~IfBefore+(1+IfBefore|DIVISION),data=WorkDf,family=binomial)
+summary(re1))
+AIC(re1)
+#
+re1.1<-glmer(PostSurgProc~IfBefore+(0+IfBefore|DIVISION),data=WorkDf,family=binomial)
+summary(re1)
+AIC(re1.1)
+#
+re3<-glmer(PostSurgProc~IfBefore+(1|State),data=WorkDf,family=binomial)
+summary(re3)
+#
+re2<-glmer(PostSurgProc~TimeBefore+(1+TimeBefore|DIVISION),data=WorkDf,family=binomial)
+summary(re2)
+#
+re4<-glmer(PostSurgProc~NumPillsBefore+(1|State),data=WorkDf,family=binomial)
+summary(re4)
+####
+
+xx=WorkDf[which(WorkDf$NumPillsBefore>0),]
+p1<-ggplot(xx,aes(x=NumPillsBefore))+geom_bar(aes(fill=factor(PostSurgProc)))
+
+# 
+# Contour Plot  Before and After Opioids
+
+p1<-ContourPlot(WorkDf$TimeBefore,WorkDf$TimeAfter,50,50,50)+ggtitle("a") +theme_bw()# Fig2a  Time before and Time After
+#
+p2<-ContourPlot(WorkDf$NumPillsBefore,WorkDf$NumPillAfter,1000,1000,30)+ggtitle('b')+theme_bw()# Fig 2b Number of Pills Before and After
+#
+p3<-ContourPlot(WorkDf$TypeBefore,WorkDf$TypeAfter,10,10,30)
+
+#
+p4<-ggplot(WorkDf,aes(TypeBefore,TypeAfter))+geom_point(aes(color=factor(IfBefore),size=NumPillAfter))+ggtitle('c')+theme_bw()# Fig 2 
+p5<-ggplot(WorkDf,aes(TypeBefore,TypeAfter))+geom_point(aes(color=factor(IfAfter),size=NumPillAfter)) +ggtitle('d')+theme_bw() # Fig 2 # Fig 2 
+
+pdf("Fig3.pdf")
+grid.arrange(p1,p2,p4,p5)
+dev.off()
+
+
+pdf('Fi3-Alt1.pdf')
+p1<-ggplot(WorkDf,aes(TimeBefore))+geom_histogram()+theme_bw()
+p2<-ggplot(WorkDf,aes(TimeAfter))+geom_histogram()+theme_bw()
+grid.arrange(p1,p2)
+dev.off()
+
+pdf('Fi3-Alt2.pdf')
+p1<-ggplot(WorkDf,aes(factor(TypeBefore)))+geom_histogram()+theme_bw()
+p2<-ggplot(WorkDf,aes(factor(TypeAfter)))+geom_histogram()+theme_bw()
+grid.arrange(p1,p2)
+dev.off()
+
+#Compare Type Before and After on same bar chart.
+a<-c(WorkDf$TypeAfter,WorkDf$TypeBefore)
+class<-c(rep(1,length(WorkDf$TypeAfter)),rep(0,length(WorkDf$TypeBefore)))
+tmp<-as.data.frame(cbind(a,class))
+ggplot(tmp,aes(factor(a),,fill=factor(class)))+geom_histogram(aes(position="dodge"))
+p1<-ggplot(tmp,aes(factor(a),fill=factor(class),position="dodge"))+geom_histogram()
+p1<-p1+xlab('Number of opioids types Before -0 and After -1')+theme_bw()
+pdf('Fig3-Alt2.pdf')
+p1+theme_bw()
+dev.off()
+
+
+#dev.off()
+###
+#Time of operation and Post TKA procedure
+D<-WorkDf[-WorkDf$OperationTime<=0,]
+p1<-ggplot(D,aes(OperationTime,fill=factor(PostSurgProc)))+geom_histogram(position="dodge")
+p1
+summary(glm(PostSurgProc~OperationTime,data=D))
+
+
+heatmap.2(cor(M),
+main="Correlogram- Number of Types Of narcotics Before and After",
+density.info="histogram",
+dendrogram="none",
+trace="none",
+keysize=1.3,
+margins=c(10,10),
+col=bluered(100))
+	
