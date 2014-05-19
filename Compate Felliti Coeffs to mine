@@ -1,0 +1,26 @@
+library(ggplot2)
+#chart<-read.csv("ChartAMIAPoster.csv")
+chart<-read.csv('Tab1Sorted.csv')
+
+zp1 <- ggplot(chart, aes(color = Study))
+#
+
+zp1 <- zp1 + geom_hline(yintercept = 1, colour = gray(1/2), lty = 1)
+
+
+                            
+
+zp1<-zp1+geom_point(aes(x = Condition,y = OR, ymin = ymin,
+                                ymax = ymax,size=Prevalence,color=Study),position = position_dodge(width = 1/2))+scale_size_area()                         
+
+zp1 <- zp1 + geom_pointrange(aes(x = Condition,y = OR, ymin = ymin,
+                                 ymax = ymax,size=Prevalence,color=Study),
+                             lwd = 0.25,  position = position_dodge(width = 1/2),
+                             shape = 21)
+
+zp1 <- zp1 + coord_flip() + theme_bw()+theme(axis.text.y=element_text(hjust=0))
+zp1 <- zp1 + ggtitle("ACE Odds ratio for different medical conditions")
+print(zp1)  # The trick to these is position_dodge().	
+#				
+ggsave("KHSandVAChart.png",width=10,height=10)
+ggsave("KHSandVAChart.pdf",width=8,height=10)
