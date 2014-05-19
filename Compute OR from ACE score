@@ -1,0 +1,154 @@
+compPrevalence<-function(kk)
+{
+df<-kk[,1:(dim(kk)[2]-3)]
+prop<-format(sapply(df,sum)/dim(df)[1],digit=2)
+prevalence<-array(NA,dim=c(dim(kk)[2]-3,1))
+for (i in 1:length(prop))
+{
+	prevalence[i,1]<-prop[[i]]
+}
+
+return(as.numeric(prevalence)*100)
+}
+
+
+library("ggplot2")
+file<-"De-ID-24_061713_newcols.txt"
+e=read.csv("Table8.csv") # Ken's Table with the prevalence and Clusters
+#k<-na.omit(read.csv(file,nrows=5000)[,-c(104)]) # Column 104 has NAs in it !?
+k<-na.omit(read.csv(file)[,-c(104)]) # Column 104 has NAs in it !?
+
+
+y=k$suia
+#Prevalence.vars<-c(56.1,51,1.8,12.5,10.5,17.2,2.7,11.5,26.6,7.6,38.8,28.0,35.20,26.4,3.02,46.3,11.7,21.3,24.9,
+#					27.8,20.8,31.9,2.5,5.5,20.5,47.2,11.6,1.6,16.30,14.3,13.3,8,5.4,3.2,0 ,0 ,0)
+
+
+Cluster<-c('Psychiatric','Psychiatric','Psychiatric','Psychiatric','Psychiatric','Psychiatric','Psychiatric','Psychiatric','Behavioral',
+		'Psychiatric','Psychiatric','Psychiatric','Behavioral','Behavioral','Behavioral','Pain',
+		'Trauma','Organic','Pain','Organic','Organic',
+		'Organic','Organic','Psychiatric','Pain','Organic','Pain','UnKnown','Control',
+		'Psychiatric','Organic','Organic','Control','Organic')
+kk=data.frame(	
+				Depression_All=k$depall,
+				Depression_311=k$depr,
+				LifetimeSuicideAttempt=k$suil,
+				Borderline=k$bdrl,
+				SubstanceAbuse=k$drug,
+				Bipolar=k$bipo,
+
+				SuicideAttempt_2001_2011=k$suia,
+				PsychoticDisorder=k$psyc,
+				Alcohol=k$alco,
+				PersonalityDisorder=k$pdis,			
+				PTSD=k$ptsd,
+				Anxiety=k$anxd,
+				
+				
+				Tobacco=k$tobc,
+				DentalDisorders=k$teth,
+				HepatitisC=k$hepc,
+				
+				Lumbago=k$lmbg,
+				Fracture=k$fracture,
+				
+				AcuteURI=k$auri,
+				Headache=k$head,
+				Presbyopia=k$prsb,
+				RefractiveError=k$rfrc,
+				
+				
+				
+				GERD=k$gerd,
+				COPD=k$copd,
+				IrritableBowelDis=k$ibwl,
+				Cervicalgia=k$cerv,
+				HTN=k$ehtn,
+				
+				Myalgia=k$myal,
+				ChronicFatigueSyndrome=k$cfat,
+				DiabetesMellitus=k$dmdx,
+			
+				DepressionScreening=k$dpsc,
+				IschemicHeartDis=k$isch,
+				Cancer=k$canc,
+				DMScreening=k$dmsc,
+				CVA=k$cvax,
+				
+				# Permanen regressors.
+				ace=k$ace_count,
+				age=k$age,
+				gender=k$gender)
+Prevalence.vars<-c(compPrevalence(kk),c(0,0,0))
+Ken<-cbind(Prevalence.vars,colnames(kk))
+
+ModelList=lapply(kk[,1:(dim(kk)[2]-3)],function(x,ace,age,gender) glm(x~ace+age+gender,family='binomial'),ace=kk$ace,age=kk$age,gender=kk$gender)
+
+
+
+#model1<-glm(k$depr~k$ace_count+k$gender*k$age,family="binomial")
+model1Frame=NULL
+for (i in 1:length(ModelList))
+{
+	
+	model1=ModelList[[i]]
+	nextModel<-data.frame(Variable=rownames(summary(model1)$coef)[2],
+						Condition=names(kk)[i],
+						Prevalence=Prevalence.vars[i],
+						OR=exp(summary(model1)$coef[2,1]),
+						ymin=exp(confint(model1))[2,1],
+						ymax=exp(confint(model1))[2,2],
+						#SE=summary(model1)$coef[2,2],
+						Data="ODS, Hammond"
+						)
+
+
+	
+model1Frame <- rbind(model1Frame,nextModel)  # etc.
+}
+allModelFrame <- data.frame(cbind(model1Frame,Cluster))  # etc.
+ordr<-order(allModelFrame$OR,decreasing=F)
+allModelFrameOrder<-allModelFrame[ordr,-1]
+write.csv(allModelFrameOrder,"Ordered.csv")
+#
+order<-allModelFrame
+
+##
+zp1 <- ggplot(order, aes(y=order$OR,x=reorder(order$Condition,order$OR),Colour=Cluster))
+zp1 <- zp1 + geom_hline(yintercept = 1, colour = gray(1/2), lty = 1)
+
+
+zp1 <- zp1 + geom_linerange(aes( y=order$OR,x=reorder(order$Condition,order$OR),ymin = ymin,
+                                ymax = ymax),
+                            lwd = 0.5, position = position_dodge(width = 2))
+                            
+  
+zp1<-zp1+geom_point(aes(y=order$OR,x=reorder(order$Condition,order$OR), ymin = ymin,
+                             ymax = ymax,size=Prevalence,colour=Cluster,fill=Cluster))+scale_size_area()+scale_shape(solid=TRUE)                  
+#
+zp1 <- zp1 + geom_pointrange(aes(y=order$OR,x=reorder(order$Condition,order$OR), ymin = ymin,
+                                 ymax = ymax),
+                             lwd = 0.25, position = position_dodge(width = 1/2),
+                             shape = Cluster)  
+                            
+   
+
+zp1<-zp1+xlab(c(as.character(order$Condition)))
+
+
+
+
+zp1 <- zp1 + coord_flip() + theme_bw()+theme(axis.text.y=element_text(hjust=0))
+zp1 <- zp1 + ggtitle("Odds ration for ACE and different morbidities from the ODS cohort")+xlab("")+ylab("OR")
+
+print(zp1)  # The trick to these is position_dodge().	
+#				
+ggsave("FullSet2.pdf",plot=zp1, width=8, height=8)
+
+####
+
+
+
+
+
+
