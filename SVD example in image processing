@@ -1,0 +1,31 @@
+library('pixmap')
+image<-read.pnm('Small.ppm')
+green.mat<-(matrix(image@green,nrow=image@size[1],ncol=image@size[2]))
+image(green.mat,col=heat.colors(255))
+
+uc.svd=svd(green.mat)
+s=uc.svd$d
+u=uc.svd$u
+v=uc.svd$v
+#
+png('SVDCompress.png',width=900,height=900)
+par(mfrow=c(3,3))
+par(cex.lab=2)
+for (i in c(2,10,20,30,50,100,150,200,300))
+    {
+        
+        compress<-u[,1:i]%*%diag(s[1:i])%*%t(v[,1:i])
+
+        lab=(paste('reconstruct with ',i,' SVs.png',sep=''))
+
+        image(compress,col=heat.colors(255),xlab=lab)
+     
+
+        
+    }
+
+
+dev.off()
+
+
+
