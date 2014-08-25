@@ -1,0 +1,108 @@
+library(ggplot2)
+library(reshape2)
+library(maps)
+library(sqldf)
+#
+#
+plotmap=function(data,param,title,legend)
+{
+	state_map=map_data("state")
+	map1=ggplot(data,aes(map_id=states))+geom_map(aes(fill=param),map=state_map)
+	map1=map1+expand_limits(x=state_map$long,y=state_map$lat)+xlab('')+ylab('')#+theme_bw()
+
+	map1=map1+scale_fill_continuous(low='blue',high='red',guide=guide_legend(title.position="bottom",title=legend))
+	#map1=map1+scale_colour_continuous(low='blue',high='red',guide='colorbar')
+	
+
+	map1=map1+labs(title=title)#,fill=legend)
+	map1=map1+theme(legend.direction="horizontal",legend.position='bottom')
+    #map1=map1+geom_text(data=data,aes(x=state_map$long,y=state_map$la,label=data$state))
+    
+    return(map1)
+}
+#
+map_states=data.frame(states=levels(factor(map_data("state")$region)))#States of the Union.
+x_rev=read.table('x_rev.txt')# file generate from med_join.R
+StatesFile=as.data.frame(apply(read.table('StateFile.txt'),2,tolower))
+
+
+df2<-sqldf('select 
+			map_states.states,
+			x_rev.RevRate
+			from map_states as map_states
+			left join x_rev as x_rev on 
+				map_states.states=x_rev.state
+			')
+#
+#
+data=df2
+param=df2$RevRate
+map_rev=plotmap(data,param,'TKR rates 2006-2013','TKR rates')
+map_rev
+ggsave('TKRrates.pdf',dpi=450)
+
+
+
+df3<-sqldf('select 
+			map_states.states,
+			x_rev.med_load
+			from map_states as map_states
+			left join x_rev as x_rev on 
+				map_states.states=x_rev.state
+			')
+#
+#
+data=df3
+param=df3$med_load
+map_med=plotmap(data,param,'Average morphine oral equivalents(mg)','MEDs(mg)')
+map_med
+ggsave('MEDs.pdf',dpi=450)
+
+chronic=read.table('Chronic_state.txt')
+chronic['State']=tolower(chronic$State)
+df11<-sqldf('select 
+	StatesFile.CorrectState as states,
+	chronic.ChronicRatio
+	
+	from chronic as chronic
+	left join StatesFile as StatesFile on 
+		StatesFile.state=chronic.State
+')
+df22<-sqldf('select 
+			map_states.states,
+			df11.ChronicRatio
+			from map_states as map_states
+			left join df11 as df11 on 
+				map_states.states=df11.states
+			')
+data=df22
+param=df22$ChronicRatio
+map_chronic=plotmap(data,param,'Fration of Chronic Opioid users among TKA patients','Chronic Opioid %')
+map_chronic
+ggsave('ChronicOpioids.pdf',dpi=450)
+#
+
+#Plot rate of  TKR to  chronic opioid fraction 
+p=sqldf('select 
+			df22.states,
+			df22.ChronicRatio,
+			df2.RevRate,
+			x_rev.TKAs,
+			x_rev.TKRs
+			from df22 as df22
+			join df2 as df2 on 
+				df2.states=df22.states
+			left join x_rev as x_rev on 
+				df2.states=x_rev.State')
+				
+rate2op=ggplot(data=p,aes(x=ChronicRatio,y=RevRate,color=TKRs,size=TKAs))+
+		geom_point()+
+		geom_text(data=p,aes(x=ChronicRatio,y=RevRate),label=p$states,size=2.5,fontface='italic',hjust=1.3,vjust=1)+
+		xlab('Fraction of opioid Chronicity among TKA patients')+
+		ylab('Knee Revision Rates')+theme_bw()+
+		ggtitle('Rates of TKR and opioid chronicity')
+rate2op
+ggsave('rate2op.pdf')
+		
+
+
