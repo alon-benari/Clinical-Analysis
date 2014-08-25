@@ -1,0 +1,442 @@
+import pandas as pd
+import re
+import numpy as np
+import csv
+class MED():
+  '''This script will take the raw prescription note and convert it to a Morphine equivalent'''
+	def __init__(self):
+		self.drug=pd.read_csv('NameWithDose.csv')
+		self.d=self.drug.LocalDrugNameWithDose # keep it short and simple
+
+	def parse_opioid(self,opioid):
+		'''This methods takes an opioid type i.e morphine, hydrocodone etc finds its index in the text and stores it in a dictionary'''	
+		d=self.d
+		opioid_dict={}
+		for op in opioid:
+			drugs=[]
+			for i in range(d.shape[0]):
+				reg='[z]*'+op
+				if (re.findall(reg,d[i].lower())):
+					drugs.append([i,d[i]])
+			opioid_dict[op]=drugs
+		return opioid_dict 
+		#
+		
+	def opioid_parser(self,formula,opioid):
+		'''This methods accepts a list item formula and find the type of opioid from a list called opioid.'''
+		parse_dict={}
+		err='err'
+		not_found=np.ones(len(formula))
+		for i,form in enumerate(formula):
+			
+			for op  in opioid:
+				reg='[z]*'+op
+				if (re.search(reg,form.lower())):
+					parse_dict[form]=op
+					not_found[i]=0
+		return not_found, parse_dict
+		
+		
+				
+	def get_opioid_name(self,parse_dict,x):
+		'''This methods takes the different formulations and greates a vector with the same length which'''
+		opioid_type=[]
+		not_indexed=[]
+		for i,k in enumerate(x):
+			try:
+				if parse_dict[k]:
+					opioid_type.append([i,k.lower(),parse_dict[k]])
+			except:
+				opioid_type.append([i,k.lower(),'None'])
+				#print not_indexed.append(i)
+		f=open('opioid_type.csv','w')
+		writer=csv.writer(f)
+		writer.writerows(opioid_type)
+		f.close()
+		return opioid_type, not_indexed
+			
+	def get_dose(self,opioid_type,parse_dict):
+		'''This methods attepts to abstract the prescribed dose'''
+		dose_index=[]		
+		ni=[]
+		for i,rec in enumerate(opioid_type):
+			try:
+				start=re.search('[\s|(]\d',rec[1]).start()
+				end=re.search('[m|/|#|\b]',rec[1][start:]).end()
+				dose=re.split('[a-z|/]',rec[1][start:start+end])[0]
+				dose_index.append([rec[0],rec[1],dose.strip(),rec[2]])
+			except:
+				ni.append(i)
+				
+		no_darvocet=[]		
+		darvocet=[]	
+		non_classified=[]
+		nis=[opioid_type[n] for n in ni]
+
+		for i,form in enumerate(nis):
+			try:
+				if re.findall('n[\W]100',form[1]):
+					darvocet.append([form[0],form[1],100,form[2]])
+				elif re.findall('n[\W]100',form[1]):
+					darvocet.append([form[0],form[1],100,form[2]])
+				elif  re.findall('-n100',form[1]):
+					darvocet.append([form[0],form[1],100,form[2]])
+				elif re.findall('#3',form[1]):
+					darvocet.append([form[0],form[1],30,form[2]])
+				elif re.findall('hydrocod5',form[1]):	
+					darvocet.append([form[0],form[1],5,form[2]])
+				elif re.findall('acetaminophen with 60mg',form[1]):
+					darvocet.append([form[0],form[1],60,form[2]])
+				elif re.findall('fentanyl',form[1]):
+					start=re.search('\d',form[1]).start()
+					end=re.search('\d$',form[1]).end()
+					dose=form[1][start:end]
+					darvocet.append([form[0],form[1],dose,form[2]])
+				elif re.findall('roxicodone',form[1]):
+					null=str()
+					dose=re.findall('\d',form[1])
+					for dig in dose:
+						null=null+dig
+					darvocet.append([form[0],form[1],null,form[2]])
+				elif re.findall('#4',form[1]):
+					darvocet.append([form[0],form[1],60,form[2]])
+				elif re.findall('codeine30',form[1]):
+					darvocet.append([form[0],form[1],30,form[2]])
+				elif re.findall('codein30',form[1]):
+					darvocet.append([form[0],form[1],30,form[2]])
+				elif re.findall('cod[\W]\s30',form[1]):
+					darvocet.append([form[0],form[1],30,form[2]])
+				elif re.findall('cod 30',form[1]):
+					darvocet.append([form[0],form[1],30,form[2]])
+				elif re.findall('zzpropoxyphen50',form[1]):
+					darvocet.append([form[0],form[1],50,form[2]])
+				elif re.findall('zapap 650mg/hydrocodone 10mg tab',form[1]):
+					print 'shalom'
+					darvocet.append([form[0],form[1],10,form[2]])
+				elif re.findall('acetaminophen 500mg/hydrocodone 7.5 tab',form[1]):
+					darvocet.append([form[0],form[1],7.5,form[2]])
+				
+				
+				elif re.findall('codeine sulf',form[1]):
+					null=str()
+					dose=re.findall('\d',form[1])
+					for dig in dose:
+						null=null+dig
+					darvocet.append([form[0],form[1],null,form[2]])
+				elif re.findall('morphine sulfate',form[1]):
+					null=str()
+					dose=re.findall('\d',form[1])
+					for dig in dose:
+						null=null+dig
+					darvocet.append([form[0],form[1],null,form[2]])
+				elif re.findall('propoxyphene n/apap',form[1]):
+					null=str()
+					dose=re.findall('\d',form[1].split('mg/')[0])
+					for dig in dose:
+						null=null+dig
+					darvocet.append([form[0],form[1],null,form[2]])
+				else:
+					no_darvocet.append(form[0])
+			except:
+				non_classified.append(form[0])#'************************************************************************'
+
+		x[no_darvocet].to_csv('no_darvocet.csv')
+			
+		dose_index.extend(darvocet)	
+		
+		#
+		acamol325=[i for i,d in enumerate(dose_index) if re.findall('^acetaminophen 325',d[1])]
+		for a in acamol325:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('[\s|(]\d',rec[1]).start()
+			end=re.search('[m|/|#|\b]',rec[1][start:]).end()
+			dose=re.split('[a-z|/]',rec[1][start:start+end])[0].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+			
+		acamol300=[i for i,d in enumerate(dose_index) if re.findall('^acetaminophen 300',d[1])]
+		for a in acamol300:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('[\s|(]\d',rec[1]).start()
+			end=re.search('[m|/|#|\b]',rec[1][start:]).end()
+			dose=re.split('[a-z|/]',rec[1][start:start+end])[0].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 	
+		acamol500=[i for i,d in enumerate(dose_index) if re.findall('^acetaminophen 500',d[1])]
+		for a in acamol500:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+		acamol650=[i for i,d in enumerate(dose_index) if re.findall('^acetaminophen 650',d[1])]
+		for a in acamol650:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+		acamol325=[i for i,d in enumerate(dose_index) if re.findall('^acetaminoph 325',d[1])]
+		for a in acamol325:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+			
+		zzacet650=[i for i,d in enumerate(dose_index) if re.findall('^zzacetamin 650',d[1])]
+		for a in zzacet650:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+		apap300=[i for i,d in enumerate(dose_index) if re.findall('^apap 300mg/codeine 30mg',d[1])]
+		for a in apap300:
+			line=dose_index[a]
+			rec=line[1].split('codeine')
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			
+			
+		apap300_2=[i for i,d in enumerate(dose_index) if re.findall('^apap 300mg, codeine 60mg',d[1])]
+		for a in apap300_2:
+			line=dose_index[a]
+			rec=line[1].split('codeine')
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+		
+		'apap 300mg/codeine 60mg(tylenol #4 ge)'
+		apap300_60=[i for i,d in enumerate(dose_index) if re.findall('^apap 300mg/codeine 60mg',d[1])]
+		for a in apap300_60:
+			line=dose_index[a]
+			rec=line[1].split('codeine')
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+		
+		
+		acet300=[i for i,d in enumerate(dose_index) if re.findall('^acetamin 300 mg w/cod',d[1])]
+		for a in acet300:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			
+		acet325_oxy=[i for i,d in enumerate(dose_index) if re.findall('^acetamin 325mg/oxycodone',d[1])]
+		for a in acet325_oxy:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+		
+		'acetamin 325/oxycodone 5mg(percocet geq)'
+		acet325=[i for i,d in enumerate(dose_index) if re.findall('^acetamin 325/oxycodone 5mg',d[1])]
+		for a in acet325:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+			
+		'zzpropoxyphene100/acetaminophen 650mg tb'
+		zzpropoxy=[i for i,d in enumerate(dose_index) if re.findall('^zzpropoxyphene100',d[1])]
+		for a in zzpropoxy:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip('/')
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+		'zzhydrocodone10mg/acetaminophen 650mg tb'
+		zzhydrocod=[i for i,d in enumerate(dose_index) if re.findall('^zzhydrocodone10mg',d[1])]
+		for a in zzhydrocod:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip('/')
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+		
+		
+		acetamine_code300=[i for i,d in enumerate(dose_index) if re.findall('^acetamin/codeine',d[1])]
+		for a in acetamine_code300:
+			line=dose_index[a]
+			dose_index[a]=[line[0],line[1],30,'codeine']
+			 
+		acetamine_code=[i for i,d in enumerate(dose_index) if re.findall('acetaminophen/codeine 300/',d[1])]
+		for a in acetamine_code:
+			line=dose_index[a]
+			dose_index[a]=[line[0],line[1],30,'codeine']
+			 
+		zzhydro=[i for i,d in enumerate(dose_index) if re.findall('^zzhydrocodone5mg',d[1])]
+		for a in zzhydro:
+			line=dose_index[a]
+			dose_index[a]=[line[0],line[1],5,'hydrocodone']	
+			 
+			
+		
+		
+		acetam500_hydro=[i for i,d in enumerate(dose_index) if re.findall('^acetam 500/hydrocodone tab 5mg',d[1])]
+		for a in acetam500_hydro:
+			line=dose_index[a]
+			dose_index[a]=[line[0],line[1],'5',parse_dict[line[1].upper()]]
+			 
+		
+		acet500=[i for i,d in enumerate(dose_index) if re.findall('^acetamin 500mg',d[1])]
+		for a in acet500:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+			
+		zapap650=[i for i,d in enumerate(dose_index) if re.findall('^zapap 650',d[1])]
+		for a in zapap650:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip()
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+		'zzpropoxyphen50/acetaminophen 325mg tab'
+		propoxy50=[i for i,d in enumerate(dose_index) if re.findall('^zzpropoxyphen50/acetaminophen 325mg tab',d[1])]
+		for a in propoxy50:
+			line=dose_index[a]
+			rec=line[1].split(parse_dict[line[1].upper()])
+			start=re.search('\d',rec[1]).start()
+			end=re.search('[m|/|#|\b|\s]',rec[1][start:]).end()
+			dose=rec[1][start:end].strip('/')
+			dose_index[a]=[line[0],line[1],dose,parse_dict[line[1].upper()]]
+			 
+		
+		#
+		f=open('dose_index.csv','w')
+		writer=csv.writer(f)
+		writer.writerows(dose_index)
+		f.close()
+		print 'dose index is written1'
+
+		
+		return	dose_index, no_darvocet, non_classified
+		
+		
+	def quick_dirty(self,six,dose_index):
+		out=[]
+		dose_vector=[5,30,15,100]
+		for j,s in enumerate(six):
+			lst=[i for i,d in enumerate(dose_index) if re.findall(s,d[1])]
+			if (lst==[]):
+				six.pop(j)
+		for k,s in enumerate(six):
+			lst=[i for i,d in enumerate(dose_index) if re.findall(s,d[1])]
+			for l in lst:
+				dose=dose_vector[k]
+				dose_index[l]=[dose_index[l][0],dose_index[l][1],dose,parse_dict[dose_index[l][1].upper()]]
+		return dose_index
+		
+	def convert_morphine_equiv(self):
+		map_dict={'buprenorphine':'buprenorphine', 'butorphanol':'butorphanol','codeine':'codeine', 'cod':'codeine', 'darvocet':'propoxyphene', 'duragesic':'fentanyl',
+       'duramorph':'fentanyl', 'fentanyl':'fentanyl', 'hcodone':'hydrocodone', 'hydrocod':'hydrocodone', 'hydrocodone':'hydrocodone',
+       'hydromorphone':'hydromorphone', 'hyrocodone':'hydrocodone', 'levorphanol':'levorphanol', 'lortab':'hydrocodone',
+       'meperidine':'meperidine', 'methadone':'methadone', 'morphine':'morphine', 'nalbuphine':'nalbuphine', 'opium':'opium',
+       'oxycodone':'oxycodone', 'oxycontin':'oxycodone', 'pentazocine':'pentazocine', 'percocet':'oxycodone', 'propox-n-100':'propoxyphene',
+       'propoxyphene':'propoxyphene', 'tylenol':'codeine', 'zzpropoxyphen':'propoxyphene', 'zzzpropoxyph':'propoxyphene'}
+
+       
+       
+		drug_convert={'meperidine':0.3,'codeine':0.15,'oxycodone':1.5,'hydromorphone':4.5,'fentanyl':50,
+					'levorphanol':7.5,'hydrocodone':1.0,'pentazocine':1.0,'nalbuphine':0.3,'buprenorphine':40,
+					'methadone':7.5,'morphine':1.0,'propoxyphene':0.077,'opium':1.0,'butorphanol':1.0}
+
+       
+		pd_type=pd.read_csv('opioid_type.csv')
+		pd_type.columns=['id','formulation','generic_drug']
+		pd_dose_index=pd.read_csv('dose_index.csv')
+		pd_dose_index.columns=['id','formulation','dose','generic_drug']
+		pd_dose_index['mapped_opioid']=[map_dict[g] for g in pd_dose_index.generic_drug]	# abstrcat the generic opioid drug.
+		pd_dose_index['coef_med1']=[drug_convert[d] for d in pd_dose_index['mapped_opioid']] # create a vector of conversions.
+		pd_dose_index.to_csv('dose_index_final.csv')
+		#
+		return pd_dose_index
+	def order_x(self,x):
+		idx=range(x.shape[0])
+		pd_x=pd.DataFrame(x)
+		pd_x['id']=idx
+		pd_x['LocalDrugNameWithDose']=x
+		pd_x.to_csv('LocalDrugNameWithDose.csv')
+		return pd_x
+	
+##--------------------
+##initializations
+med=MED()
+x=med.d
+formula=x.unique().tolist()
+#
+opioid=['& codeine','codein30','tylenol','codeine','/cod','cod.','cod','pentazocine','propoxyphene','percocet','propox-n-100','buprenorphine','opium','nalbuphine','butorphanol','levorphanol','lortab','hydrocod','zzpropoxyphen','zzzpropoxyph','hydrocodone','hcodone',
+'morphine','hydromorphone','fentanyl','oxycodone','hyrocodone','oxycontin','methadone',
+'darvocet','duragesic','duramorph','meperidine']
+
+translate_dict=['codeine','pentazocine','propoxyphene','oxycodone','buprenorphine','nalbuphine','butorphanol','levorphanol','hydrocodone'
+ ,'morphine','hydromorphone','fentanyl','oxycodone','methadone','meperidine']
+
+
+not_found, parse_dict=med.opioid_parser(formula, opioid) # Build the dictionary of formulations and types of oopiods
+
+
+whats_left=[formula[i] for i in not_found.nonzero()[0]]  # see whats left.
+#
+opioid_type,not_indexed=med.get_opioid_name(parse_dict,x)
+dose_index,no_darvocet,non_classified=med.get_dose(opioid_type,parse_dict)
+
+#
+# A little untility to help find mis-classified drugs and outlies.
+#
+df=pd.DataFrame(pd.read_csv('dose_index.csv'))
+df.columns=['id','formula','dose','generic']
+#
+dose_vec=df['dose'].convert_objects(convert_numeric=True).values[:]
+mask=dose_vec>200
+#df.ix[mask.nonzero()[0]]  # find 
+zz=(df.ix[mask.nonzero()].values[:,1:2])
+lz={z:list(zz).count(z) for z in np.unique(zz)}
+c=[parse_dict.__contains__(k.upper()) for k in lz.keys()] # whether the index exists in the dictionaryc
+
+# the final 6
+six=[k for k in lz.keys() if parse_dict.__contains__(k.upper())]
+dose_index_final=med.quick_dirty(six,dose_index)
+f=open('dose_index.csv','w')
+writer=csv.writer(f)
+writer.writerows(dose_index_final)
+f.close()
+print 'dose index is written2'
+########
+pd_dose_index=med.convert_morphine_equiv()
+pd_x=med.order_x(x)
