@@ -1,4 +1,4 @@
 SuicideData
 ===========
 
-Scripts to work on text mined data.
+These are R and python scripts to manipuate the knee replacement, opioid prescription and generate the necessary plots.
